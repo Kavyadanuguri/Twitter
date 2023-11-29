@@ -26,6 +26,26 @@ const InitializeAndStartServer = async () => {
 };
 InitializeAndStartServer();
 
+const middleWareFunction = (request, response, next) => {
+  const { username, password } = request.body;
+  const authHeader = request.headers["authorization"];
+  if (authHeader !== undefined) {
+    const jwtToken = authHeader.split(" ")[1];
+    jwt.verify(jwtToken, "MY_SECRET_TOKEN", async (error, payload) => {
+      if (error) {
+        response.status(401);
+        response.send("Invalid JWT Token");
+      } else {
+        request.username = payload.username;
+        next();
+      }
+    });
+  } else {
+    response.status(401);
+    response.send("Invalid JWT Token");
+  }
+};
+
 app.post("/register/", async (request, response) => {
   const { username, password, name, gender } = request.body;
   const getUserQuery = `
@@ -82,6 +102,18 @@ app.post("/login/", async (request, response) => {
     response.status(400);
     response.send("Invalid user");
   }
+});
+
+app.get("/user/tweets/feed/", middleWareFunction, async (request, response) => {
+  const { username } = request;
+  const getDetailsQuery = `
+       SELECT username, tweet, date_time as dateTime
+       From user inner join tweet on user.user_id = tweet.user_id
+       WHERE  username = '${username}'
+       order by date_time DESC
+       LIMIT 4;`;
+  const result = await db.all(getDetailsQuery);
+  response.send(result);
 });
 
 module.exports = app;
